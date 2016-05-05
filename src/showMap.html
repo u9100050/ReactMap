@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Карта России</title>
+    <style>
+        path {
+            stroke: #383838;
+            stroke-width: 1px;
+        }
+
+        div.tooltip {
+            position: absolute;
+            text-align: center;
+            width: 150px;
+            height: 25px;
+            padding: 2px;
+            font-size: 10px;
+            background: #FFFFE0;
+            border: 1px;
+            border-radius: 8px;
+            pointer-events: none;
+        }
+
+        .city {
+            font: 10px sans-serif;
+            font-weight: bold;
+        }
+
+        .legend {
+            font-size: 12px;
+        }
+    </style>
+    <script type="text/javascript" src="http://d3js.org/d3.v3.min.js"></script>
+    <script type="text/javascript" src="http://d3js.org/queue.v1.min.js"></script>
+    <script type="text/javascript" src="http://d3js.org/topojson.v0.min.js"></script>
+
+</head>
+<body>
+<h1>Россия</h1>
+<script>
+    'use strict';
+    let width = 960;
+    let height = 500;
+    //    let color_domain = ["0", "1"];
+    let ext_color_domain = [0, 1500];
+    let legend_labels = ["Газифицировано", "Нет представительств"];
+
+    let color = d3.scale.threshold()
+            .domain([0, 1, 1500])
+            .range(["RED", "#ECB7A5", "#BABABA", "#BABABA"]);
+
+
+    var div = d3.select("body").append("div")
+            .attr("class", "tooltip")
+            .style("opacity", 0);
+
+    var svg = d3.select("body").append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+    var projection = d3.geo.albers()
+            .rotate([-105, 0])
+            .center([-10, 65])
+            .parallels([52, 64])
+            .scale(700)
+            .translate([width / 2, height / 2]);
+
+    var path = d3.geo.path().projection(projection);
+
+    queue()
+            .defer(d3.json, "./map/russia_1e-7sr.json")
+            .defer(d3.csv, "./map/Accidents.csv")
+            .await(ready);
+
+    function ready(error, map, data) {
+        var rateById = {};
+        var nameById = {};
+
+        data.forEach(function (d) {
+            rateById[d.RegionCode] = +d.Gray;
+            nameById[d.RegionCode] = d.RegionName;
+            console.log(d.RegionCode);
+        });
+
+        svg.append("g")
+                .attr("class", "region")
+                .selectAll("path")
+                .data(topojson.object(map, map.objects.russia).geometries)
+                .enter().append("path")
+                .attr("d", path)
+                .style("fill", function (d) {
+//                    console.log(rateById[d.properties.region] + " : " + color(1));
+                    return color(rateById[d.properties.region]);
+                })
+                .style("opacity", 1)
+                .on("mouseover", function (d) {
+                    d3.select(this).transition().duration(300).style("opacity", 0.7);
+                    div.transition().duration(300)
+                            .style("opacity", 1);
+                    div.text(nameById[d.properties.region] + " : " + rateById[d.properties.region])
+                            .style("left", (d3.event.pageX) + "px")
+                            .style("top", (d3.event.pageY - 30) + "px");
+                })
+                .on("mouseout", function () {
+                    d3.select(this)
+                            .transition().duration(300)
+                            .style("opacity", 1);
+                    div.transition().duration(300)
+                            .style("opacity", 0);
+                })
+    }
+    var legend = svg.selectAll("g.legend")
+            .data(ext_color_domain)
+            .enter().append("g")
+            .attr("class", "legend");
+
+    var ls_w = 20, ls_h = 20;
+
+    legend.append("rect")
+            .attr("x", 20)
+            .attr("y", function (d, i) {
+                return height - (i * ls_h) - 2 * ls_h;
+            })
+            .attr("width", ls_w)
+            .attr("height", ls_h)
+            .style("fill", function (d, i) {
+                return color(d);
+            })
+            .style("opacity", 0.8);
+
+    legend.append("text")
+            .attr("x", 50)
+            .attr("y", function (d, i) {
+                return height - (i * ls_h) - ls_h - 4;
+            })
+            .text(function (d, i) {
+                return legend_labels[i];
+            });
+
+</script>
+</body>
+</html>
